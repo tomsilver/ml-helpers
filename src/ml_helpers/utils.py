@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from typing import Callable, Iterator, Tuple
+from typing import Callable, Iterator
 
 import numpy as np
 import torch
@@ -13,22 +13,25 @@ from ml_helpers.structs import Array, MaxTrainIters
 torch.use_deterministic_algorithms(mode=True)  # type: ignore
 
 
-def _get_torch_device(use_torch_gpu: bool) -> torch.device:
+def get_torch_device(use_torch_gpu: bool) -> torch.device:
+    """Get the torch device to use based on whether CUDA is available."""
     return torch.device(
         "cuda:0" if use_torch_gpu and torch.cuda.is_available() else "cpu"
     )
 
 
-def _normalize_data(data: Array, scale_clip: float = 1) -> Tuple[Array, Array, Array]:
+def normalize_data(data: Array, scale_clip: float = 1) -> tuple[Array, Array, Array]:
+    """Normalize a dataset to be between 0 and 1."""
     shift = np.min(data, axis=0)
     scale = np.max(data - shift, axis=0)
     scale = np.clip(scale, scale_clip, None)
     return (data - shift) / scale, shift, scale
 
 
-def _balance_binary_classification_data(
+def balance_binary_classification_data(
     X: Array, y: Array, rng: np.random.Generator
-) -> Tuple[Array, Array]:
+) -> tuple[Array, Array]:
+    """Reduce a dataset randomly so that classes are balanced."""
     pos_idxs_np = np.argwhere(np.array(y) == 1).squeeze()
     neg_idxs_np = np.argwhere(np.array(y) == 0).squeeze()
     pos_idxs = [pos_idxs_np.item()] if not pos_idxs_np.shape else list(pos_idxs_np)
@@ -43,19 +46,19 @@ def _balance_binary_classification_data(
     return (X, y)
 
 
-def _single_batch_generator(
+def single_batch_generator(
     tensor_X: Tensor, tensor_Y: Tensor
-) -> Iterator[Tuple[Tensor, Tensor]]:
+) -> Iterator[tuple[Tensor, Tensor]]:
     """Infinitely generate all of the data in one batch."""
     while True:
         yield (tensor_X, tensor_Y)
 
 
-def _train_pytorch_model(
+def train_pytorch_model(
     model: nn.Module,
     loss_fn: Callable[[Tensor, Tensor], Tensor],
     optimizer: optim.Optimizer,
-    batch_generator: Iterator[Tuple[Tensor, Tensor]],
+    batch_generator: Iterator[tuple[Tensor, Tensor]],
     max_train_iters: MaxTrainIters,
     dataset_size: int,
     device: torch.device,
@@ -67,7 +70,9 @@ def _train_pytorch_model(
     """Note that this currently does not use minibatches.
 
     In the future, with very large datasets, we would want to switch to
-    minibatches. Returns the best loss seen during training.
+    minibatches. Returns the best training loss seen during training.
+
+    In the future, we should use validation sets to find the best model.
     """
     model.train()
     itr = 0

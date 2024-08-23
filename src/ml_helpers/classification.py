@@ -1,7 +1,7 @@
 """Models for classification."""
 
 import abc
-from typing import Any, Callable, List, Tuple, Type
+from typing import Any, Callable, Type
 
 import numpy as np
 import torch
@@ -12,11 +12,11 @@ from torch import Tensor, nn, optim
 
 from ml_helpers.structs import Array, MaxTrainIters
 from ml_helpers.utils import (
-    _balance_binary_classification_data,
-    _get_torch_device,
-    _normalize_data,
-    _single_batch_generator,
-    _train_pytorch_model,
+    balance_binary_classification_data,
+    get_torch_device,
+    normalize_data,
+    single_batch_generator,
+    train_pytorch_model,
 )
 
 
@@ -93,7 +93,7 @@ class _NormalizingBinaryClassifier(BinaryClassifier):
         super().__init__(seed)
         self._balance_data = balance_data
         # Set in fit().
-        self._x_dims: Tuple[int, ...] = tuple()
+        self._x_dims: tuple[int, ...] = tuple()
         self._input_shift = np.zeros(1, dtype=np.float32)
         self._input_scale = np.zeros(1, dtype=np.float32)
         self._do_single_class_prediction = False
@@ -125,9 +125,9 @@ class _NormalizingBinaryClassifier(BinaryClassifier):
         # Balance the classes.
         if self._balance_data and len(y) // 2 > sum(y):
             old_len = len(y)
-            X, y = _balance_binary_classification_data(X, y, self._rng)
+            X, y = balance_binary_classification_data(X, y, self._rng)
             print(f"Reduced dataset size from {old_len} to {len(y)}")
-        X, self._input_shift, self._input_scale = _normalize_data(X)
+        X, self._input_shift, self._input_scale = normalize_data(X)
         self._fit(X, y)
 
     def classify(self, x: Array) -> bool:
@@ -180,7 +180,7 @@ class PyTorchBinaryClassifier(_NormalizingBinaryClassifier, nn.Module):
         self._n_iter_no_change = n_iter_no_change
         self._n_reinitialize_tries = n_reinitialize_tries
         self._weight_init = weight_init
-        self._device = _get_torch_device(use_torch_gpu)
+        self._device = get_torch_device(use_torch_gpu)
         self._train_print_every = train_print_every
 
     @abc.abstractmethod
@@ -241,7 +241,7 @@ class PyTorchBinaryClassifier(_NormalizingBinaryClassifier, nn.Module):
         # Convert data to tensors.
         tensor_X = torch.from_numpy(np.array(X, dtype=np.float32)).to(self._device)
         tensor_y = torch.from_numpy(np.array(y, dtype=np.float32)).to(self._device)
-        batch_generator = _single_batch_generator(tensor_X, tensor_y)
+        batch_generator = single_batch_generator(tensor_X, tensor_y)
         # Run training.
         for _ in range(self._n_reinitialize_tries):
             # (Re-)initialize weights.
@@ -249,7 +249,7 @@ class PyTorchBinaryClassifier(_NormalizingBinaryClassifier, nn.Module):
             # Create the optimizer.
             optimizer = self._create_optimizer()
             # Run training.
-            best_loss = _train_pytorch_model(
+            best_loss = train_pytorch_model(
                 self,
                 loss_fn,
                 optimizer,
@@ -294,7 +294,7 @@ class MLPBinaryClassifier(PyTorchBinaryClassifier):
         max_train_iters: MaxTrainIters,
         learning_rate: float,
         n_iter_no_change: int,
-        hid_sizes: List[int],
+        hid_sizes: list[int],
         n_reinitialize_tries: int,
         weight_init: str,
         weight_decay: float = 0,

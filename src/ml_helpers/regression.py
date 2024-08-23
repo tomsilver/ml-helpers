@@ -1,7 +1,7 @@
 """Models for regression."""
 
 import abc
-from typing import Any, Callable, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Iterator
 
 import numpy as np
 import torch
@@ -13,10 +13,10 @@ from torch.distributions.categorical import Categorical
 
 from ml_helpers.structs import Array, MaxTrainIters
 from ml_helpers.utils import (
-    _get_torch_device,
-    _normalize_data,
-    _single_batch_generator,
-    _train_pytorch_model,
+    get_torch_device,
+    normalize_data,
+    single_batch_generator,
+    train_pytorch_model,
 )
 
 
@@ -71,7 +71,7 @@ class _NormalizingRegressor(Regressor):
     def __init__(self, seed: int, disable_normalization: bool = False) -> None:
         super().__init__(seed)
         # Set in fit().
-        self._x_dims: Tuple[int, ...] = tuple()
+        self._x_dims: tuple[int, ...] = tuple()
         self._y_dim = -1
         self._disable_normalization = disable_normalization
         self._input_shift = np.zeros(1, dtype=np.float32)
@@ -86,8 +86,8 @@ class _NormalizingRegressor(Regressor):
         assert Y.shape[0] == num_data
         print(f"Training {self.__class__.__name__} on {num_data} " "datapoints")
         if not self._disable_normalization:
-            X, self._input_shift, self._input_scale = _normalize_data(X)
-            Y, self._output_shift, self._output_scale = _normalize_data(Y)
+            X, self._input_shift, self._input_scale = normalize_data(X)
+            Y, self._output_shift, self._output_scale = normalize_data(Y)
         self._fit(X, Y)
 
     def predict(self, x: Array) -> Array:
@@ -142,7 +142,7 @@ class PyTorchRegressor(_NormalizingRegressor, nn.Module):
         self._learning_rate = learning_rate
         self._weight_decay = weight_decay
         self._n_iter_no_change = n_iter_no_change
-        self._device = _get_torch_device(use_torch_gpu)
+        self._device = get_torch_device(use_torch_gpu)
         self._train_print_every = train_print_every
 
     @abc.abstractmethod
@@ -177,9 +177,9 @@ class PyTorchRegressor(_NormalizingRegressor, nn.Module):
         # Convert data to tensors.
         tensor_X = torch.from_numpy(np.array(X, dtype=np.float32)).to(self._device)
         tensor_Y = torch.from_numpy(np.array(Y, dtype=np.float32)).to(self._device)
-        batch_generator = _single_batch_generator(tensor_X, tensor_Y)
+        batch_generator = single_batch_generator(tensor_X, tensor_Y)
         # Run training.
-        _train_pytorch_model(
+        train_pytorch_model(
             self,
             loss_fn,
             optimizer,
@@ -228,7 +228,7 @@ class MLPRegressor(PyTorchRegressor):
     def __init__(
         self,
         seed: int,
-        hid_sizes: List[int],
+        hid_sizes: list[int],
         max_train_iters: MaxTrainIters,
         clip_gradients: bool,
         clip_value: float,
@@ -316,7 +316,7 @@ class ImplicitMLPRegressor(PyTorchRegressor):
     def __init__(
         self,
         seed: int,
-        hid_sizes: List[int],
+        hid_sizes: list[int],
         max_train_iters: MaxTrainIters,
         clip_gradients: bool,
         clip_value: float,
@@ -328,10 +328,10 @@ class ImplicitMLPRegressor(PyTorchRegressor):
         weight_decay: float = 0,
         use_torch_gpu: bool = False,
         train_print_every: int = 1000,
-        derivative_free_num_iters: Optional[int] = None,
-        derivative_free_sigma_init: Optional[float] = None,
-        derivative_free_shrink_scale: Optional[float] = None,
-        grid_num_ticks_per_dim: Optional[int] = None,
+        derivative_free_num_iters: int | None = None,
+        derivative_free_sigma_init: float | None = None,
+        derivative_free_shrink_scale: float | None = None,
+        grid_num_ticks_per_dim: int | None = None,
     ) -> None:
         super().__init__(
             seed,
@@ -395,7 +395,7 @@ class ImplicitMLPRegressor(PyTorchRegressor):
 
     def _create_batch_generator(
         self, X: Array, Y: Array
-    ) -> Iterator[Tuple[Tensor, Tensor]]:
+    ) -> Iterator[tuple[Tensor, Tensor]]:
         num_samples = X.shape[0]
         num_negatives = self._num_negatives_per_input
         # Cast to torch first.
@@ -453,7 +453,7 @@ class ImplicitMLPRegressor(PyTorchRegressor):
         # Create the batch generator, which creates negative data.
         batch_generator = self._create_batch_generator(X, Y)
         # Run training.
-        _train_pytorch_model(
+        train_pytorch_model(
             self,
             loss_fn,
             optimizer,
@@ -561,9 +561,9 @@ class CNNRegressor(PyTorchRegressor):
     def __init__(
         self,
         seed: int,
-        conv_channel_nums: List[int],
-        conv_kernel_sizes: List[int],
-        linear_hid_sizes: List[int],
+        conv_channel_nums: list[int],
+        conv_kernel_sizes: list[int],
+        linear_hid_sizes: list[int],
         max_train_iters: MaxTrainIters,
         clip_gradients: bool,
         clip_value: float,
@@ -643,7 +643,7 @@ class NeuralGaussianRegressor(PyTorchRegressor, DistributionRegressor):
     def __init__(
         self,
         seed: int,
-        hid_sizes: List[int],
+        hid_sizes: list[int],
         max_train_iters: MaxTrainIters,
         clip_gradients: bool,
         clip_value: float,
@@ -720,7 +720,7 @@ class NeuralGaussianRegressor(PyTorchRegressor, DistributionRegressor):
             y.append(y_i)
         return np.array(y)
 
-    def _predict_mean_var(self, x: Array) -> Tuple[Array, Array]:
+    def _predict_mean_var(self, x: Array) -> tuple[Array, Array]:
         # Note: we need to use _predict(), rather than predict(), because
         # we need to apply normalization separately to the mean and variance
         # components of the prediction (see below).
@@ -737,7 +737,7 @@ class NeuralGaussianRegressor(PyTorchRegressor, DistributionRegressor):
         return mean, variance
 
     @staticmethod
-    def _split_prediction(Y: Tensor) -> Tuple[Tensor, Tensor]:
+    def _split_prediction(Y: Tensor) -> tuple[Tensor, Tensor]:
         return torch.split(Y, Y.shape[-1] // 2, dim=-1)  # type: ignore
 
 

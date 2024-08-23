@@ -2,7 +2,7 @@
 
 ![workflow](https://github.com/tomsilver/ml-helpers/actions/workflows/ci.yml/badge.svg)
 
-A basic starter for Python packages with GitHub continuous integration.
+Some models and helper functions for machine learning.
 
 ## Requirements
 
